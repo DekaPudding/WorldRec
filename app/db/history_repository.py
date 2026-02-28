@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import sqlite3
 from datetime import datetime
 
 from app.core.tag_utils import normalize_tag_string, split_tags
@@ -278,28 +279,32 @@ class HistoryRepository:
                     ):
                         continue
 
-                    conn.execute(
-                        """
-                        UPDATE visit_histories
-                        SET world_id = ?,
-                            instance_id = ?,
-                            instance_access_type = ?,
-                            instance_nonce = ?,
-                            instance_raw_tags = ?,
-                            updated_at = ?
-                        WHERE id = ?
-                        """,
-                        (
-                            next_world_id,
-                            next_instance_id,
-                            next_access_type,
-                            next_nonce,
-                            next_raw_tags,
-                            now_iso,
-                            int(row["id"]),
-                        ),
-                    )
-                    updated += 1
+                    try:
+                        conn.execute(
+                            """
+                            UPDATE visit_histories
+                            SET world_id = ?,
+                                instance_id = ?,
+                                instance_access_type = ?,
+                                instance_nonce = ?,
+                                instance_raw_tags = ?,
+                                updated_at = ?
+                            WHERE id = ?
+                            """,
+                            (
+                                next_world_id,
+                                next_instance_id,
+                                next_access_type,
+                                next_nonce,
+                                next_raw_tags,
+                                now_iso,
+                                int(row["id"]),
+                            ),
+                        )
+                        updated += 1
+                    except sqlite3.IntegrityError:
+                        # Skip rows that would violate the event-level unique index.
+                        continue
             conn.commit()
             return updated
         finally:

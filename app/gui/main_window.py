@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import threading
 from dataclasses import dataclass
 from datetime import date, datetime
@@ -206,6 +207,7 @@ class MainWindow(QMainWindow):
         app_settings: AppSettings,
     ) -> None:
         super().__init__()
+        self.logger = logging.getLogger(__name__)
         self.setWindowTitle("WorldRec")
         self.resize(1200, 800)
 
@@ -271,6 +273,7 @@ class MainWindow(QMainWindow):
 
         self._apply_startup_filter()
         self._reload_history()
+        self.logger.info("MainWindow initialized")
 
     def _build_layout(self) -> None:
         self.content_splitter = QSplitter()
@@ -828,10 +831,12 @@ class MainWindow(QMainWindow):
         return "AI検索機能は現在未実装です。"
 
     def _show_error(self, message: str) -> None:
+        self.logger.error(message)
         self.filter_panel.set_error(message)
         self.status_bar.showMessage(message, 8000)
 
     def _show_info(self, message: str) -> None:
+        self.logger.info(message)
         self.status_bar.showMessage(message, 8000)
 
     def _toggle_chat_panel(self) -> None:
@@ -883,8 +888,10 @@ class MainWindow(QMainWindow):
             app.setFont(app_font)
 
     def closeEvent(self, event) -> None:  # type: ignore[override]
+        self.logger.info("MainWindow close requested")
         self._save_stop_event.set()
         self._save_wake_event.set()
         self._flush_save_queue()
         self.log_watcher.stop()
+        self.logger.info("MainWindow close completed")
         super().closeEvent(event)

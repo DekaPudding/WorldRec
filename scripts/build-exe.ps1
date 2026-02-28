@@ -53,4 +53,8 @@ if ($pythonExe -eq 'py') {
     & $pythonExe @buildArgs
 }
 
+if ($LASTEXITCODE -ne 0) {
+    throw "PyInstaller failed with exit code $LASTEXITCODE."
+}
+
 Write-Host "Build finished: $ProjectRoot\dist\WorldRec\WorldRec.exe"

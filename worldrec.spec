@@ -2,7 +2,9 @@
 
 from pathlib import Path
 
-project_root = Path(__file__).resolve().parent
+# PyInstaller executes spec files via `exec()` and `__file__` may be undefined.
+# Prefer `SPEC` injected by PyInstaller; fallback keeps local/manual execution working.
+project_root = Path(globals().get("SPEC", Path.cwd() / "worldrec.spec")).resolve().parent
 
 block_cipher = None
 

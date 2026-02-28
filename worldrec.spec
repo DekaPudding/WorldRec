@@ -31,6 +31,7 @@ exe = EXE(
     [],
     exclude_binaries=True,
     name="WorldRec",
+    icon="NONE",
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,

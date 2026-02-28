@@ -17,8 +17,9 @@ class Database:
     }
 
     def __init__(self, db_path: str | None = None) -> None:
-        self.db_path = db_path or self.default_db_path()
-        Path(self.db_path).parent.mkdir(parents=True, exist_ok=True)
+        preferred = Path(db_path).expanduser() if db_path else Path(self.default_db_path())
+        self.db_path = str(preferred)
+        self._ensure_writable_path()
 
     @staticmethod
     def default_db_path() -> str:
@@ -31,6 +32,29 @@ class Database:
         conn = sqlite3.connect(self.db_path, check_same_thread=False)
         conn.row_factory = sqlite3.Row
         return conn
+
+    def _ensure_writable_path(self) -> None:
+        primary = Path(self.db_path)
+        if self._is_writable_db_target(primary):
+            self.db_path = str(primary)
+            return
+
+        fallback = Path(self.default_db_path())
+        if self._is_writable_db_target(fallback):
+            self.db_path = str(fallback)
+            return
+
+        raise PermissionError(f"Database path is not writable: {self.db_path}")
+
+    @staticmethod
+    def _is_writable_db_target(path: Path) -> bool:
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            with path.open("ab"):
+                pass
+            return True
+        except OSError:
+            return False
 
     def initialize(self) -> None:
         conn = self.connect()

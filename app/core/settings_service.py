@@ -88,6 +88,7 @@ class SettingsService:
         defaults = self.default_settings()
         log_dir = settings.log_dir or defaults.log_dir
         db_path = settings.db_path or defaults.db_path
+        db_path = self._resolve_db_path(db_path)
         return AppSettings(
             schema_version=settings.schema_version,
             theme=settings.theme,
@@ -99,3 +100,10 @@ class SettingsService:
             batch_max_events=settings.batch_max_events,
             vrchat_autostart_enabled=settings.vrchat_autostart_enabled,
         ).sanitized()
+
+    def _resolve_db_path(self, db_path: str) -> str:
+        candidate = Path(db_path).expanduser()
+        if not candidate.is_absolute():
+            # Keep legacy relative paths writable by resolving from settings location.
+            candidate = self.settings_path.parent / candidate
+        return str(candidate.resolve())

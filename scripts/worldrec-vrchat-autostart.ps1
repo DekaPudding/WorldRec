@@ -6,25 +6,34 @@ $ErrorActionPreference = 'Stop'
 
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $ProjectRoot = Split-Path -Parent $ScriptDir
-$VenvPython = Join-Path $ProjectRoot '.venv\Scripts\python.exe'
+$VenvPythonw = Join-Path $ProjectRoot '.venv\Scripts\pythonw.exe'
 $WorldRecExe = Join-Path $ProjectRoot 'WorldRec.exe'
 
-function Get-WorldRecPython {
-    if (Test-Path $VenvPython) {
-        return $VenvPython
+function Get-WorldRecRuntime {
+    if (Test-Path $VenvPythonw) {
+        return @{
+            FilePath = $VenvPythonw
+            ArgumentList = @('-m', 'app.main', '--start-minimized')
+        }
     }
 
-    $py = Get-Command py -ErrorAction SilentlyContinue
-    if ($py) {
-        return 'py'
+    $pyw = Get-Command pyw -ErrorAction SilentlyContinue
+    if ($pyw) {
+        return @{
+            FilePath = 'pyw'
+            ArgumentList = @('-3', '-m', 'app.main', '--start-minimized')
+        }
     }
 
-    $python = Get-Command python -ErrorAction SilentlyContinue
-    if ($python) {
-        return 'python'
+    $pythonw = Get-Command pythonw -ErrorAction SilentlyContinue
+    if ($pythonw) {
+        return @{
+            FilePath = 'pythonw'
+            ArgumentList = @('-m', 'app.main', '--start-minimized')
+        }
     }
 
-    throw 'Python runtime not found. Create .venv or add py/python to PATH.'
+    throw 'Windowless Python runtime not found. Create .venv or add pyw/pythonw to PATH.'
 }
 
 function Test-VRChatRunning {
@@ -38,7 +47,7 @@ function Test-WorldRecRunning {
         }
     }
 
-    $procs = Get-CimInstance Win32_Process -Filter "Name = 'python.exe' OR Name = 'pythonw.exe' OR Name = 'py.exe'"
+    $procs = Get-CimInstance Win32_Process -Filter "Name = 'python.exe' OR Name = 'pythonw.exe' OR Name = 'py.exe' OR Name = 'pyw.exe'"
     foreach ($p in $procs) {
         $cmd = [string]$p.CommandLine
         if ($cmd -match 'app\.main') {
@@ -50,18 +59,12 @@ function Test-WorldRecRunning {
 
 function Start-WorldRec {
     if (Test-Path $WorldRecExe) {
-        Start-Process -FilePath $WorldRecExe -ArgumentList '--start-minimized' -WorkingDirectory $ProjectRoot | Out-Null
+        Start-Process -FilePath $WorldRecExe -ArgumentList '--start-minimized' -WorkingDirectory $ProjectRoot -WindowStyle Hidden | Out-Null
         return
     }
 
-    $pythonExe = Get-WorldRecPython
-
-    if ($pythonExe -eq 'py') {
-        Start-Process -FilePath 'py' -ArgumentList '-3', '-m', 'app.main', '--start-minimized' -WorkingDirectory $ProjectRoot | Out-Null
-        return
-    }
-
-    Start-Process -FilePath $pythonExe -ArgumentList '-m', 'app.main', '--start-minimized' -WorkingDirectory $ProjectRoot | Out-Null
+    $runtime = Get-WorldRecRuntime
+    Start-Process -FilePath $runtime.FilePath -ArgumentList $runtime.ArgumentList -WorkingDirectory $ProjectRoot -WindowStyle Hidden | Out-Null
 }
 
 while ($true) {

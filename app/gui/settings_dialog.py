@@ -240,6 +240,7 @@ class SettingsDialog(QDialog):
         return None
 
     def _on_apply(self) -> None:
+        previous = self.current_settings
         candidate = self._collect_settings()
         error = self._validate(candidate)
         if error:
@@ -251,13 +252,20 @@ class SettingsDialog(QDialog):
             self.status_label.setText(f"設定保存に失敗しました: {exc}")
             return
 
+        task_sync_error: str | None = None
+        if os.name == "nt" and previous.vrchat_autostart_enabled != saved.vrchat_autostart_enabled:
+            task_sync_error = self._sync_startup_task(saved.vrchat_autostart_enabled)
+
         self.current_settings = saved
         self.settings_applied.emit(saved)
-        self.status_label.setText("設定を保存しました。")
+        if task_sync_error:
+            self.status_label.setText(f"設定を保存しましたが自動起動タスクの更新に失敗しました: {task_sync_error}")
+        else:
+            self.status_label.setText("設定を保存しました。")
 
     def _on_accept(self) -> None:
         self._on_apply()
-        if self.status_label.text().startswith("設定を保存しました"):
+        if self.status_label.text() == "設定を保存しました。":
             self.accept()
 
     def _on_reset_current_tab(self) -> None:
@@ -342,24 +350,41 @@ class SettingsDialog(QDialog):
             self.status_label.setText(f"バックアップ復元に失敗しました: {exc}")
 
     def _register_startup_task(self) -> None:
-        self._run_startup_script("register-startup-task.ps1", ["-PollSeconds", "60"])
+        error = self._sync_startup_task(True)
+        if error:
+            self.status_label.setText(f"操作に失敗しました: {error}")
+            return
+        self.status_label.setText("自動起動タスクを登録しました。")
 
     def _unregister_startup_task(self) -> None:
-        self._run_startup_script("unregister-startup-task.ps1", [])
-
-    def _run_startup_script(self, script_name: str, args: list[str]) -> None:
-        if os.name != "nt":
-            self.status_label.setText("この機能はWindowsでのみ利用できます。")
+        error = self._sync_startup_task(False)
+        if error:
+            self.status_label.setText(f"操作に失敗しました: {error}")
             return
+        self.status_label.setText("自動起動タスクを解除しました。")
+
+    def _sync_startup_task(self, enabled: bool) -> str | None:
+        script_name = "register-startup-task.ps1" if enabled else "unregister-startup-task.ps1"
+        args = ["-PollSeconds", "60"] if enabled else []
+        ok, message = self._run_startup_script(script_name, args)
+        if ok:
+            return None
+        return message or "詳細不明"
+
+    def _run_startup_script(self, script_name: str, args: list[str]) -> tuple[bool, str]:
+        if os.name != "nt":
+            return False, "この機能はWindowsでのみ利用できます。"
 
         app_root = self._resolve_app_root()
         script_path = app_root / "scripts" / script_name
         if not script_path.exists():
-            self.status_label.setText(f"スクリプトが見つかりません: {script_path}")
-            return
+            return False, f"スクリプトが見つかりません: {script_path}"
 
         cmd = [
             "powershell",
+            "-NoLogo",
+            "-NoProfile",
+            "-NonInteractive",
             "-ExecutionPolicy",
             "RemoteSigned",
             "-File",
@@ -368,12 +393,12 @@ class SettingsDialog(QDialog):
         ]
         try:
             subprocess.run(cmd, cwd=str(app_root), check=True, capture_output=True, text=True)
-            self.status_label.setText("操作が完了しました。")
+            return True, ""
         except subprocess.CalledProcessError as exc:
             message = (exc.stderr or exc.stdout or "").strip()
             if len(message) > 180:
                 message = message[:180] + "..."
-            self.status_label.setText(f"操作に失敗しました: {message or '詳細不明'}")
+            return False, message or "詳細不明"
 
     @staticmethod
     def _resolve_app_root() -> Path:

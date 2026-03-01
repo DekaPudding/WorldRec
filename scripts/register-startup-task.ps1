@@ -12,7 +12,7 @@ if (-not (Test-Path $WatcherScript)) {
     throw "Watcher script not found: $WatcherScript"
 }
 
-$taskCommand = "powershell.exe -NoProfile -ExecutionPolicy RemoteSigned -WindowStyle Hidden -File `"$WatcherScript`" -PollSeconds $PollSeconds"
+$taskCommand = "powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy RemoteSigned -WindowStyle Hidden -File `"$WatcherScript`" -PollSeconds $PollSeconds"
 
 schtasks /Create /F /SC ONLOGON /RL LIMITED /TN $TaskName /TR $taskCommand | Out-Null
 Write-Host "Task registered: $TaskName"

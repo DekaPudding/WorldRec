@@ -164,15 +164,8 @@ class SettingsDialog(QDialog):
         startup_group = QGroupBox("自動起動")
         startup_layout = QVBoxLayout()
         self.autostart_checkbox = QCheckBox("VRChat連動自動起動を使う")
-        buttons_row = QHBoxLayout()
-        self.register_task_button = QPushButton("自動起動タスクを登録...")
-        self.unregister_task_button = QPushButton("自動起動タスクを解除...")
-        self.register_task_button.clicked.connect(self._register_startup_task)
-        self.unregister_task_button.clicked.connect(self._unregister_startup_task)
-        buttons_row.addWidget(self.register_task_button)
-        buttons_row.addWidget(self.unregister_task_button)
         startup_layout.addWidget(self.autostart_checkbox)
-        startup_layout.addLayout(buttons_row)
+        startup_layout.addWidget(QLabel("変更は「適用」または「OK」で反映されます。"))
         startup_group.setLayout(startup_layout)
 
         layout.addWidget(path_group)
@@ -348,20 +341,6 @@ class SettingsDialog(QDialog):
             self.status_label.setText("バックアップを復元しました。")
         except Exception as exc:
             self.status_label.setText(f"バックアップ復元に失敗しました: {exc}")
-
-    def _register_startup_task(self) -> None:
-        error = self._sync_startup_task(True)
-        if error:
-            self.status_label.setText(f"操作に失敗しました: {error}")
-            return
-        self.status_label.setText("自動起動タスクを登録しました。")
-
-    def _unregister_startup_task(self) -> None:
-        error = self._sync_startup_task(False)
-        if error:
-            self.status_label.setText(f"操作に失敗しました: {error}")
-            return
-        self.status_label.setText("自動起動タスクを解除しました。")
 
     def _sync_startup_task(self, enabled: bool) -> str | None:
         script_name = "register-startup-task.ps1" if enabled else "unregister-startup-task.ps1"

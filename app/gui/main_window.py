@@ -5,8 +5,8 @@ import threading
 from dataclasses import dataclass
 from datetime import date, datetime
 
-from PySide6.QtCore import QObject, Signal
-from PySide6.QtGui import QAction, QFont, QKeySequence
+from PySide6.QtCore import QObject, QUrl, Signal
+from PySide6.QtGui import QAction, QDesktopServices, QFont, QKeySequence
 from PySide6.QtWidgets import (
     QApplication,
     QDialog,
@@ -37,6 +37,8 @@ from app.gui.filter_panel import FilterPanel
 from app.gui.history_table import HistoryTable
 from app.gui.login_dialog import LoginDialog, LoginInput
 from app.gui.world_detail_dialog import WorldDetailDialog
+
+FEEDBACK_FORM_URL = "https://docs.google.com/forms/d/e/1FAIpQLSczjwSs13_8nwiYbKJa39Bw3T3SGgzprNmNrGGl4QfcFFnWqw/viewform?usp=header"
 
 
 class UiBridge(QObject):
@@ -247,6 +249,8 @@ class MainWindow(QMainWindow):
         self.filter_panel = FilterPanel()
         self.history_table = HistoryTable()
         self.chat_panel = ChatPanel()
+        self.feedback_button = QPushButton("不具合報告・要望を送る")
+        self.feedback_button.setObjectName("feedbackButton")
         self.chat_open_button = QPushButton("AI検索（未実装）")
         self.chat_open_button.setObjectName("chatOpenButton")
         self.chat_open_button.setEnabled(False)
@@ -289,8 +293,9 @@ class MainWindow(QMainWindow):
         right_panel = QWidget()
         right_layout = QVBoxLayout()
         right_header = QHBoxLayout()
-        right_header.addStretch(1)
+        right_header.addWidget(self.feedback_button)
         right_header.addWidget(self.chat_open_button)
+        right_header.addStretch(1)
         right_layout.addLayout(right_header)
         right_layout.addWidget(self.content_splitter)
         right_layout.setStretch(0, 0)
@@ -318,6 +323,7 @@ class MainWindow(QMainWindow):
         self.filter_panel.clear_clicked.connect(self._clear_filter)
         self.chat_panel.submit_query.connect(self._run_recommendation_async)
         self.chat_open_button.clicked.connect(self._toggle_chat_panel)
+        self.feedback_button.clicked.connect(self._open_feedback_url)
         self.history_table.history_double_clicked.connect(self._on_history_double_clicked)
 
     def _build_menu(self) -> None:
@@ -841,6 +847,10 @@ class MainWindow(QMainWindow):
 
     def _toggle_chat_panel(self) -> None:
         self._show_info("AI検索機能は現在未実装です。")
+
+    def _open_feedback_url(self) -> None:
+        if not QDesktopServices.openUrl(QUrl(FEEDBACK_FORM_URL)):
+            self._show_error("不具合報告・要望フォームを開けませんでした。")
 
     def _open_settings_dialog(self) -> None:
         dialog = SettingsDialog(self.settings_service, self.app_settings, self)

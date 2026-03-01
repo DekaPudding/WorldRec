@@ -2,7 +2,7 @@ from __future__ import annotations
 
 
 _DISPLAY_MAPPING: dict[str, str] = {
-    "hidden": "Invite系(非公開)",
+    "friends+": "Friends+",
 }
 
 _QUERY_MAPPING: dict[str, str] = {
@@ -16,8 +16,8 @@ _QUERY_MAPPING: dict[str, str] = {
     "invite": "invite",
     "invite+": "invite+",
     "インバイト": "invite",
-    "hidden": "hidden",
-    "非公開": "hidden",
+    "hidden": "friends+",
+    "非公開": "friends+",
     "group": "group",
     "グループ": "group",
     "private": "private",
@@ -26,14 +26,24 @@ _QUERY_MAPPING: dict[str, str] = {
 
 
 def to_display_access_type(value: str | None) -> str:
-    normalized = (value or "").strip().lower()
+    normalized = normalize_access_type_value(value)
     if not normalized:
         return "不明"
-    return _DISPLAY_MAPPING.get(normalized, value.strip())
+    return _DISPLAY_MAPPING.get(normalized, normalized)
+
+
+def normalize_access_type_value(value: str | None) -> str | None:
+    normalized = (value or "").strip().lower()
+    if not normalized:
+        return None
+    # VRChat logs often emit hidden for invite-plus style instances.
+    if normalized == "hidden":
+        return "friends+"
+    return normalized
 
 
 def normalize_access_type_query(value: str | None) -> str | None:
-    normalized = (value or "").strip().lower()
+    normalized = normalize_access_type_value(value)
     if not normalized:
         return None
     return _QUERY_MAPPING.get(normalized)
@@ -47,7 +57,6 @@ def get_access_type_options() -> list[tuple[str, str | None]]:
         ("Friends+", "friends+"),
         ("Invite", "invite"),
         ("Invite+", "invite+"),
-        ("Invite系(非公開)", "hidden"),
         ("Group", "group"),
         ("Private", "private"),
         ("Offline", "offline"),

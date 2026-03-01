@@ -4,6 +4,8 @@ import re
 from dataclasses import dataclass
 from datetime import datetime
 
+from app.core.instance_access_type import normalize_access_type_value
+
 
 @dataclass(slots=True)
 class WorldVisitEvent:
@@ -269,7 +271,7 @@ class WorldEventParser:
         for tag in tags:
             normalized = tag.split("(", 1)[0]
             if normalized in self._instance_access_types:
-                access_type = normalized
+                access_type = normalize_access_type_value(normalized)
                 break
 
         return (access_type, instance_nonce, raw_tags)

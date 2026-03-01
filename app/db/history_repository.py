@@ -3,6 +3,7 @@ from __future__ import annotations
 import sqlite3
 from datetime import datetime
 
+from app.core.instance_access_type import normalize_access_type_value
 from app.core.tag_utils import normalize_tag_string, split_tags
 from app.db.database import Database
 from app.models.dto import FilterCriteria
@@ -43,7 +44,7 @@ class HistoryRepository:
                     world_name,
                     world_id,
                     instance_id,
-                    instance_access_type,
+                    self._normalize_access_type(instance_access_type),
                     instance_nonce,
                     instance_raw_tags,
                     stay_duration_seconds,
@@ -85,7 +86,7 @@ class HistoryRepository:
                 world_name,
                 world_id,
                 instance_id,
-                instance_access_type,
+                self._normalize_access_type(instance_access_type),
                 instance_nonce,
                 instance_raw_tags,
                 stay_duration_seconds,
@@ -151,7 +152,7 @@ class HistoryRepository:
                 world_name,
                 world_id,
                 instance_id,
-                instance_access_type,
+                self._normalize_access_type(instance_access_type),
                 instance_nonce,
                 instance_raw_tags,
                 stay_duration_seconds,
@@ -230,7 +231,7 @@ class HistoryRepository:
             ) in visits:
                 new_world_id = self._normalize_optional_text(world_id)
                 new_instance_id = self._normalize_optional_text(instance_id)
-                new_access_type = self._normalize_optional_text(instance_access_type)
+                new_access_type = self._normalize_access_type(instance_access_type)
                 new_nonce = self._normalize_optional_text(instance_nonce)
                 new_raw_tags = self._normalize_optional_text(instance_raw_tags)
                 if not any([new_world_id, new_instance_id, new_access_type, new_nonce, new_raw_tags]):
@@ -260,7 +261,7 @@ class HistoryRepository:
                 for row in target_rows:
                     old_world_id = self._normalize_optional_text(row["world_id"])
                     old_instance_id = self._normalize_optional_text(row["instance_id"])
-                    old_access_type = self._normalize_optional_text(row["instance_access_type"])
+                    old_access_type = self._normalize_access_type(row["instance_access_type"])
                     old_nonce = self._normalize_optional_text(row["instance_nonce"])
                     old_raw_tags = self._normalize_optional_text(row["instance_raw_tags"])
 
@@ -500,7 +501,7 @@ class HistoryRepository:
                     world_name=str(row["world_name"]),
                     world_id=row["world_id"],
                     instance_id=row["instance_id"],
-                    instance_access_type=self._normalize_optional_text(row["instance_access_type"]),
+                    instance_access_type=self._normalize_access_type(row["instance_access_type"]),
                     instance_nonce=row["instance_nonce"],
                     instance_raw_tags=row["instance_raw_tags"],
                     stay_duration_seconds=row["stay_duration_seconds"],
@@ -550,6 +551,14 @@ class HistoryRepository:
         if not normalized:
             return None
         return normalized
+
+    @staticmethod
+    def _normalize_access_type(value) -> str | None:
+        normalized = HistoryRepository._normalize_optional_text(value)
+        if normalized is None:
+            return None
+        canonical = normalize_access_type_value(normalized)
+        return canonical or normalized
 
     @staticmethod
     def _basename_normalized(value) -> str | None:

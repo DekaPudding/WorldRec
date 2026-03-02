@@ -1,154 +1,115 @@
-# WorldRec ユーザーガイド
+# WorldRec
 
-VRChatの訪問ワールド履歴を自動記録・参照するデスクトップアプリです。
+VRChat の訪問ワールド履歴を自動で記録・検索する、Windows 向けデスクトップアプリです。
 
-- 最終更新: 2026-03-01
-- 対象: WorldRecを日常利用するユーザー
+## 概要
 
-## このアプリでできること
-- VRChatの訪問ワールド履歴を自動で記録
-- 履歴を日付で絞り込んで確認
-- ワールド行をダブルクリックして詳細表示
-- 設定画面から見た目や記録動作を調整
+WorldRec は VRChat のログ（`output_log_*.txt`）を監視し、訪問したワールド情報をローカル DB に保存します。履歴の絞り込み表示、ワールド詳細表示、メモ/タグ管理、バックアップ/復元が可能です。
+
+## 主な機能
+
+- VRChat ログ監視による訪問履歴の自動記録
+- 日付・期間・クイックフィルタ（今日/昨日/全件）での絞り込み
+- ワールド詳細表示（名前、説明、サムネイル、訪問回数など）
+- メモ/タグの保存
+- 設定管理（テーマ、文字サイズ、保存間隔など）
+- 設定と DB のバックアップ/復元
+- Windows タスクスケジューラを使った自動起動設定
 
 注意:
-- AI検索機能は現在未実装です（画面上でも未実装と表示されます）。
+- AI 検索機能は現在未実装です。
 
-## 初回セットアップ
+## 動作環境
 
-### 1) インストール
-```bash
-python -m venv .venv
-```
+- OS: Windows（通常利用想定）
+- Python: 3.10 以上推奨
+- 主な依存ライブラリ:
+  - `PySide6==6.7.0`
+  - `watchdog==4.0.0`
 
-PowerShell:
+## インストール
+
 ```powershell
+python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
 ```
 
-### 2) 起動
-```bash
+## 起動方法
+
+```powershell
 python -m app.main
 ```
 
-## 基本的な使い方
+起動オプション:
+- `--start-minimized`: 最小化状態で起動
 
-### 履歴を見る
-- アプリ起動後、履歴一覧が表示されます。
-- 一覧には主に「時刻」「ワールド名」「インスタンスタイプ」が表示されます。
+## 使い方
 
-### 日付で絞り込む
-- 単日: カレンダーの日付をダブルクリック
-- 期間: 「期間」モードで開始/終了日時を入力して「適用」
-- クイック: 「今日」「昨日」「クリア」
+1. アプリを起動すると履歴一覧が表示されます。
+2. 日付フィルタで期間を絞り込みます。
+3. 履歴行をダブルクリックするとワールド詳細を確認できます。
+4. 詳細画面でメモ/タグを編集して保存できます。
 
-### ワールド詳細を開く
-- 一覧の行をダブルクリック
-- 詳細ダイアログで次の情報を確認できます。
-  - ワールド名
-  - 総訪問回数
-  - インスタンスタイプ
-  - ワールド容量
-  - 対応Platform
-  - 説明
-  - サムネイル
-  - メモ/タグ
+## 設定とデータ保存先
 
-### メモ/タグを保存する
-- 詳細ダイアログのメモとタグを編集
-- 「メモ/タグを保存」を押す
+既定の保存先（Windows）:
+- 設定ファイル: `%LOCALAPPDATA%\WorldRec\settings.json`
+- データベース: `%LOCALAPPDATA%\WorldRec\worldrec.db`
+- VRChat ログ既定参照先: `%USERPROFILE%\AppData\LocalLow\VRChat\VRChat`
 
-## 設定画面の使い方
+## テスト
 
-### 開き方
-- メニュー `設定 > 設定を開く...`
-- または `Ctrl+,`
+```powershell
+python -m unittest discover -s tests -p "test_*.py"
+```
 
-### タブ構成
-- 基本設定
-  - テーマ（システム/ライト/ダーク）
-  - 文字サイズ（標準/大きめ）
-  - 起動時に表示する期間（今日/昨日/全件）
-  - AI検索は未実装案内のみ
-- 詳細設定
-  - VRChatログフォルダ
-  - データベース保存先
-  - 保存の間隔（秒）
-  - まとめて保存する件数
-  - 自動起動タスク登録/解除（Windows）
-- データ管理
-  - バックアップ作成
-  - バックアップ復元
-  - 設定のみ初期化
-
-### ボタンの意味
-- `OK`: 保存して閉じる
-- `適用`: 保存して閉じない
-- `キャンセル`: 変更を破棄
-- `初期値に戻す`: 現在のタブを初期値に戻す
-
-### いつ反映されるか
-すぐ反映:
-- テーマ
-- 文字サイズ
-- 保存の間隔
-- まとめて保存する件数
-- VRChatログフォルダ
-
-次回起動で反映:
-- 起動時に表示する期間
-- データベース保存先
-
-## バックアップと復元
-
-### バックアップ
-- 設定画面 > データ管理 > 「バックアップを作成...」
-- `settings.json` と `worldrec.db` をZIPで保存します。
-
-### 復元
-- 設定画面 > データ管理 > 「バックアップから復元...」
-- 現在の設定とDBを上書きします（確認ダイアログあり）。
-
-## VRChat連動の自動起動（Windows）
-
-設定画面から操作できるほか、手動でも実行できます。
+## VRChat 連動の自動起動（Windows）
 
 登録:
+
 ```powershell
 powershell -ExecutionPolicy RemoteSigned -File .\scripts\register-startup-task.ps1 -PollSeconds 60
 ```
 
 解除:
+
 ```powershell
 powershell -ExecutionPolicy RemoteSigned -File .\scripts\unregister-startup-task.ps1
 ```
 
-## よくある確認ポイント
-- 履歴が増えない
-  - VRChatを起動しているか
-  - ログフォルダ設定が正しいか（設定画面 > 詳細設定）
-  - `output_log_*.txt` が存在するか
-- 詳細が取得できない
-  - 通信状況
-  - VRChat API認証が必要なケース
-- 自動起動しない
-  - タスクスケジューラに `WorldRec-VRChat-Autostart` があるか
+## ビルド
 
-## 保存先（Windows）
-- 設定ファイル: `%LOCALAPPDATA%/WorldRec/settings.json`
-- DB（既定）: `%LOCALAPPDATA%/WorldRec/worldrec.db`
+実行ファイル作成:
 
-## 開発者向け（ビルド）
-
-通常利用には不要です。配布用ビルドを作る場合に使います。
-
-Windowsビルド:
 ```powershell
 powershell -ExecutionPolicy RemoteSigned -File .\scripts\build-exe.ps1 -Clean
 ```
 
-リリースビルド:
-```powershell
-powershell -ExecutionPolicy RemoteSigned -File .\scripts\build-release.ps1 -Version 1.0.0 -Clean
+## ディレクトリ構成
+
+```text
+.
+├─ app/            # アプリ本体（GUI / core / db / models）
+├─ tests/          # 単体テスト
+├─ scripts/        # ビルド・自動起動関連の PowerShell スクリプト
+├─ installer/      # Inno Setup スクリプト
+├─ worldrec.spec   # PyInstaller 設定
+└─ README.md
 ```
+
+## トラブルシュート
+
+- 履歴が増えない:
+  - VRChat が起動中か確認
+  - ログフォルダ設定が正しいか確認
+  - `output_log_*.txt` が存在するか確認
+- ワールド詳細が取得できない:
+  - ネットワーク接続を確認
+  - VRChat API 認証が必要なケースを確認
+- 自動起動しない:
+  - タスクスケジューラに `WorldRec-VRChat-Autostart` があるか確認
+
+## ライセンス
+
+このプロジェクトは [MIT License](./LICENSE) の下で公開されています。

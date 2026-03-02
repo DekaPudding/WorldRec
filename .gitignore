@@ -11,6 +11,7 @@ venv/
 # Build and release artifacts
 build/
 dist/
+dist_build/
 artifacts/
 
 # Test/coverage outputs

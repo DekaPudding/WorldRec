@@ -99,6 +99,15 @@ powershell -ExecutionPolicy RemoteSigned -File .\scripts\unregister-startup-task
 powershell -ExecutionPolicy RemoteSigned -File .\scripts\build-exe.ps1 -Clean
 ```
 
+補足:
+- 既定の出力先は `.\dist\WorldRec`
+- `dist` がロックされている場合は自動で `.\dist_build\WorldRec` に退避してビルド
+- 出力先を固定したい場合は `-DistPath` を指定
+
+```powershell
+powershell -ExecutionPolicy RemoteSigned -File .\scripts\build-exe.ps1 -Clean -DistPath .\dist_build
+```
+
 ## ディレクトリ構成
 
 ```text
@@ -106,7 +115,6 @@ powershell -ExecutionPolicy RemoteSigned -File .\scripts\build-exe.ps1 -Clean
 ├─ app/            # アプリ本体（GUI / core / db / models）
 ├─ tests/          # 単体テスト
 ├─ scripts/        # ビルド・自動起動関連の PowerShell スクリプト
-├─ installer/      # Inno Setup スクリプト
 ├─ worldrec.spec   # PyInstaller 設定
 └─ README.md
 ```

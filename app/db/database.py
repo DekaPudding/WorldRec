@@ -5,6 +5,8 @@ import sqlite3
 from datetime import datetime
 from pathlib import Path
 
+from app.core.instance_access_type import normalize_access_type_value
+
 
 class Database:
     _REQUIRED_VISIT_COLUMNS: dict[str, str] = {
@@ -149,7 +151,7 @@ class Database:
                 WHEN lower(%FIELD%) LIKE '%~friends%' THEN 'friends'
                 WHEN lower(%FIELD%) LIKE '%~invite%' THEN 'invite'
                 WHEN lower(%FIELD%) LIKE '%~group%' THEN 'group'
-                WHEN lower(%FIELD%) LIKE '%~hidden%' THEN 'hidden'
+                WHEN lower(%FIELD%) LIKE '%~hidden%' THEN 'friends+'
                 WHEN lower(%FIELD%) LIKE '%~private%' THEN 'private'
                 WHEN lower(%FIELD%) LIKE '%~offline%' THEN 'offline'
                 ELSE NULL
@@ -180,6 +182,18 @@ class Database:
             """,
             (now_iso,),
         )
+
+        normalized_hidden = normalize_access_type_value("hidden")
+        if normalized_hidden:
+            conn.execute(
+                """
+                UPDATE visit_histories
+                SET instance_access_type = ?,
+                    updated_at = ?
+                WHERE LOWER(TRIM(COALESCE(instance_access_type, ''))) = 'hidden'
+                """,
+                (normalized_hidden, now_iso),
+            )
 
     @staticmethod
     def _deduplicate_visit_rows(conn: sqlite3.Connection) -> None:

@@ -221,5 +221,5 @@ class RecommendationService:
             if normalized:
                 found.add(normalized)
         if "非公開" in query:
-            found.add("hidden")
+            found.add("friends+")
         return found

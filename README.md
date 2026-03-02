@@ -58,6 +58,19 @@ python -m app.main
 - データベース: `%LOCALAPPDATA%\WorldRec\worldrec.db`
 - VRChat ログ既定参照先: `%USERPROFILE%\AppData\LocalLow\VRChat\VRChat`
 
+## データと通信について
+
+- ローカル保存:
+  - VRChat ログから抽出した訪問履歴（ワールド名、訪問時刻など）
+  - ユーザーが入力したメモ/タグ
+  - アプリ設定（テーマ、ログフォルダ、DBパスなど）
+- 外部通信:
+  - ワールド詳細表示時に VRChat API（`https://api.vrchat.cloud/api/1`）へ問い合わせ
+  - AI推薦機能を有効にし、`WORLDREC_OPENAI_API_KEY` または `OPENAI_API_KEY` が設定されている場合のみ OpenAI API（`https://api.openai.com/v1`）へ問い合わせ
+- 認証情報:
+  - VRChat ログイン用パスワードは送信時のみメモリ上で使用し、恒久保存しません
+  - APIキーは環境変数から読み取り、アプリ設定ファイルには保存しません
+
 ## テスト
 
 ```powershell
@@ -85,6 +98,33 @@ powershell -ExecutionPolicy RemoteSigned -File .\scripts\unregister-startup-task
 ```powershell
 powershell -ExecutionPolicy RemoteSigned -File .\scripts\build-exe.ps1 -Clean
 ```
+
+インストーラー + Release 配布物作成:
+
+```powershell
+powershell -ExecutionPolicy RemoteSigned -File .\scripts\build-release.ps1 -Version 0.1.0 -Clean
+```
+
+生成物（`artifacts/`）:
+- `WorldRec-Setup-v<version>.exe`（インストーラー）
+- `WorldRec-v<version>-win64.zip`（展開版）
+- `WorldRec-v<version>-sha256.txt`（ハッシュ）
+
+## GitHub Release 自動化
+
+タグ `v*` を push すると、GitHub Actions が Windows でビルドして Release に成果物を添付します。
+
+```powershell
+git tag v0.1.0
+git push origin v0.1.0
+```
+
+手動実行は Actions の `Build And Publish Release` から `version` を指定して実行できます。
+
+任意でコード署名する場合は、Repository Secrets に以下を設定してください:
+- `WORLDREC_SIGN_CERT_BASE64`（PFX を Base64 化した文字列）
+- `WORLDREC_SIGN_CERT_PASSWORD`
+- `WORLDREC_SIGN_TIMESTAMP_URL`（未設定時は `http://timestamp.digicert.com`）
 
 ## ディレクトリ構成
 

@@ -1,0 +1,112 @@
+name: Build And Publish Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release version (e.g. 0.1.0)"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Inno Setup
+        run: choco install innosetup --no-progress -y
+
+      - name: Resolve version
+        id: meta
+        shell: pwsh
+        run: |
+          if ("${{ github.event_name }}" -eq "workflow_dispatch") {
+            $version = "${{ github.event.inputs.version }}"
+          } else {
+            $version = "${{ github.ref_name }}"
+            if ($version.StartsWith("v")) {
+              $version = $version.Substring(1)
+            }
+          }
+
+          if (-not $version) {
+            throw "Version is empty."
+          }
+
+          "version=$version" >> $env:GITHUB_OUTPUT
+
+          if ("${{ github.event_name }}" -eq "push") {
+            "signing_mode=always" >> $env:GITHUB_OUTPUT
+          } else {
+            "signing_mode=auto" >> $env:GITHUB_OUTPUT
+          }
+
+      - name: Validate signing config for tag release
+        if: ${{ github.event_name == 'push' }}
+        shell: pwsh
+        env:
+          WORLDREC_SIGN_CERT_BASE64: ${{ secrets.WORLDREC_SIGN_CERT_BASE64 }}
+          WORLDREC_SIGN_CERT_PASSWORD: ${{ secrets.WORLDREC_SIGN_CERT_PASSWORD }}
+        run: |
+          if (-not $env:WORLDREC_SIGN_CERT_BASE64) {
+            throw "Tag release requires WORLDREC_SIGN_CERT_BASE64."
+          }
+          if (-not $env:WORLDREC_SIGN_CERT_PASSWORD) {
+            throw "Tag release requires WORLDREC_SIGN_CERT_PASSWORD."
+          }
+
+      - name: Prepare signing certificate (optional)
+        if: ${{ secrets.WORLDREC_SIGN_CERT_BASE64 != '' }}
+        id: cert
+        shell: pwsh
+        env:
+          WORLDREC_SIGN_CERT_BASE64: ${{ secrets.WORLDREC_SIGN_CERT_BASE64 }}
+        run: |
+          $certPath = Join-Path $env:RUNNER_TEMP "worldrec-signing.pfx"
+          [IO.File]::WriteAllBytes($certPath, [Convert]::FromBase64String($env:WORLDREC_SIGN_CERT_BASE64))
+          "cert_path=$certPath" >> $env:GITHUB_OUTPUT
+
+      - name: Build release artifacts
+        shell: pwsh
+        env:
+          WORLDREC_SIGN_CERT_PATH: ${{ steps.cert.outputs.cert_path }}
+          WORLDREC_SIGN_CERT_PASSWORD: ${{ secrets.WORLDREC_SIGN_CERT_PASSWORD }}
+          WORLDREC_SIGN_TIMESTAMP_URL: ${{ secrets.WORLDREC_SIGN_TIMESTAMP_URL }}
+        run: |
+          .\scripts\build-release.ps1 `
+            -Version "${{ steps.meta.outputs.version }}" `
+            -Clean `
+            -Signing "${{ steps.meta.outputs.signing_mode }}"
+
+      - name: Upload workflow artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: worldrec-release-v${{ steps.meta.outputs.version }}
+          path: artifacts/*
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.meta.outputs.version }}
+          target_commitish: ${{ github.sha }}
+          name: WorldRec v${{ steps.meta.outputs.version }}
+          generate_release_notes: true
+          fail_on_unmatched_files: true
+          files: |
+            artifacts/WorldRec-Setup-v${{ steps.meta.outputs.version }}.exe
+            artifacts/WorldRec-v${{ steps.meta.outputs.version }}-win64.zip
+            artifacts/WorldRec-v${{ steps.meta.outputs.version }}-sha256.txt

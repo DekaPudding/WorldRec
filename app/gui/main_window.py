@@ -859,7 +859,10 @@ class MainWindow(QMainWindow):
 
     def _apply_settings(self, settings: AppSettings) -> None:
         previous = self.app_settings
-        self.app_settings = settings.sanitized()
+        next_settings = settings.sanitized()
+        if next_settings == previous:
+            return
+        self.app_settings = next_settings
         self._batch_flush_seconds = self.app_settings.batch_flush_seconds
         self._batch_max_events = self.app_settings.batch_max_events
         self._apply_styles()

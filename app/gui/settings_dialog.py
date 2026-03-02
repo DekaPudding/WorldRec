@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import os
 import subprocess
 import sys
@@ -41,6 +42,7 @@ class SettingsDialog(QDialog):
         parent=None,
     ) -> None:
         super().__init__(parent)
+        self.logger = logging.getLogger(__name__)
         self.settings_service = settings_service
         self.current_settings = current_settings
 
@@ -164,15 +166,8 @@ class SettingsDialog(QDialog):
         startup_group = QGroupBox("自動起動")
         startup_layout = QVBoxLayout()
         self.autostart_checkbox = QCheckBox("VRChat連動自動起動を使う")
-        buttons_row = QHBoxLayout()
-        self.register_task_button = QPushButton("自動起動タスクを登録...")
-        self.unregister_task_button = QPushButton("自動起動タスクを解除...")
-        self.register_task_button.clicked.connect(self._register_startup_task)
-        self.unregister_task_button.clicked.connect(self._unregister_startup_task)
-        buttons_row.addWidget(self.register_task_button)
-        buttons_row.addWidget(self.unregister_task_button)
         startup_layout.addWidget(self.autostart_checkbox)
-        startup_layout.addLayout(buttons_row)
+        startup_layout.addWidget(QLabel("変更は「適用」または「OK」で反映されます。"))
         startup_group.setLayout(startup_layout)
 
         layout.addWidget(path_group)
@@ -239,26 +234,51 @@ class SettingsDialog(QDialog):
             return "データベース保存先を入力してください。"
         return None
 
-    def _on_apply(self) -> None:
+    def _on_apply(self) -> bool:
+        previous = self.current_settings
         candidate = self._collect_settings()
         error = self._validate(candidate)
         if error:
+            self.logger.warning("Validation failed on apply: %s", error)
             self.status_label.setText(error)
-            return
+            return False
+        if candidate == previous:
+            return True
         try:
             saved = self.settings_service.save(candidate)
         except Exception as exc:
+            self.logger.exception("Failed to save settings")
             self.status_label.setText(f"設定保存に失敗しました: {exc}")
-            return
+            return False
+
+        task_sync_error: str | None = None
+        should_sync_task = (
+            saved.vrchat_autostart_enabled
+            or previous.vrchat_autostart_enabled != saved.vrchat_autostart_enabled
+        )
+        if os.name == "nt" and should_sync_task:
+            task_sync_error = self._sync_startup_task(saved.vrchat_autostart_enabled)
+            if task_sync_error:
+                self.logger.error("Failed to sync startup task: %s", task_sync_error)
 
         self.current_settings = saved
         self.settings_applied.emit(saved)
-        self.status_label.setText("設定を保存しました。")
+        if task_sync_error:
+            self.status_label.setText(f"設定を保存しましたが自動起動タスクの更新に失敗しました: {task_sync_error}")
+            return False
+        else:
+            self.status_label.setText("設定を保存しました。")
+            return True
 
     def _on_accept(self) -> None:
-        self._on_apply()
-        if self.status_label.text().startswith("設定を保存しました"):
+        if not self._has_pending_changes():
             self.accept()
+            return
+        if self._on_apply():
+            self.accept()
+
+    def _has_pending_changes(self) -> bool:
+        return self._collect_settings() != self.current_settings
 
     def _on_reset_current_tab(self) -> None:
         defaults = self.settings_service.default_settings()
@@ -283,11 +303,18 @@ class SettingsDialog(QDialog):
         )
         if result != QMessageBox.StandardButton.Yes:
             return
-        defaults = self.settings_service.reset_to_default()
-        self.current_settings = defaults
-        self._set_values(defaults)
-        self.settings_applied.emit(defaults)
-        self.status_label.setText("設定を初期化しました。")
+        if self.current_settings == self.settings_service.default_settings():
+            self.status_label.setText("既に初期値です。")
+            return
+        try:
+            defaults = self.settings_service.reset_to_default()
+            self.current_settings = defaults
+            self._set_values(defaults)
+            self.settings_applied.emit(defaults)
+            self.status_label.setText("設定を初期化しました。")
+        except Exception as exc:
+            self.logger.exception("Failed to reset settings")
+            self.status_label.setText(f"設定初期化に失敗しました: {exc}")
 
     def _choose_log_dir(self) -> None:
         selected = QFileDialog.getExistingDirectory(self, "VRChatログフォルダを選択", self.log_dir_edit.text())
@@ -315,6 +342,7 @@ class SettingsDialog(QDialog):
             self.settings_service.create_backup(selected, db_path)
             self.status_label.setText("バックアップを作成しました。")
         except Exception as exc:
+            self.logger.exception("Failed to create backup")
             self.status_label.setText(f"バックアップ作成に失敗しました: {exc}")
 
     def _restore_backup(self) -> None:
@@ -339,27 +367,36 @@ class SettingsDialog(QDialog):
             self.settings_applied.emit(loaded)
             self.status_label.setText("バックアップを復元しました。")
         except Exception as exc:
+            self.logger.exception("Failed to restore backup")
             self.status_label.setText(f"バックアップ復元に失敗しました: {exc}")
 
-    def _register_startup_task(self) -> None:
-        self._run_startup_script("register-startup-task.ps1", ["-PollSeconds", "60"])
+    def _sync_startup_task(self, enabled: bool) -> str | None:
+        script_name = "register-startup-task.ps1" if enabled else "unregister-startup-task.ps1"
+        args = []
+        ok, message = self._run_startup_script(script_name, args)
+        if ok:
+            return None
+        return message or "詳細不明"
 
-    def _unregister_startup_task(self) -> None:
-        self._run_startup_script("unregister-startup-task.ps1", [])
-
-    def _run_startup_script(self, script_name: str, args: list[str]) -> None:
+    def _run_startup_script(self, script_name: str, args: list[str]) -> tuple[bool, str]:
         if os.name != "nt":
-            self.status_label.setText("この機能はWindowsでのみ利用できます。")
-            return
+            return False, "この機能はWindowsでのみ利用できます。"
 
         app_root = self._resolve_app_root()
-        script_path = app_root / "scripts" / script_name
-        if not script_path.exists():
-            self.status_label.setText(f"スクリプトが見つかりません: {script_path}")
-            return
+        script_path = self._resolve_startup_script_path(script_name, app_root)
+        if script_path is None:
+            self.logger.error(
+                "Startup script not found: script=%s app_root=%s",
+                script_name,
+                app_root,
+            )
+            return False, f"スクリプトが見つかりません: {app_root / 'scripts' / script_name}"
 
         cmd = [
             "powershell",
+            "-NoLogo",
+            "-NoProfile",
+            "-NonInteractive",
             "-ExecutionPolicy",
             "RemoteSigned",
             "-File",
@@ -368,12 +405,32 @@ class SettingsDialog(QDialog):
         ]
         try:
             subprocess.run(cmd, cwd=str(app_root), check=True, capture_output=True, text=True)
-            self.status_label.setText("操作が完了しました。")
+            return True, ""
         except subprocess.CalledProcessError as exc:
             message = (exc.stderr or exc.stdout or "").strip()
             if len(message) > 180:
                 message = message[:180] + "..."
-            self.status_label.setText(f"操作に失敗しました: {message or '詳細不明'}")
+            self.logger.error(
+                "Startup script failed: script=%s returncode=%s message=%s",
+                script_name,
+                exc.returncode,
+                message or "<empty>",
+            )
+            return False, message or "詳細不明"
+
+    @staticmethod
+    def _resolve_startup_script_path(script_name: str, app_root: Path) -> Path | None:
+        candidates = [
+            app_root / "scripts" / script_name,
+            app_root / "_internal" / "scripts" / script_name,
+        ]
+        meipass = getattr(sys, "_MEIPASS", None)
+        if meipass:
+            candidates.append(Path(meipass) / "scripts" / script_name)
+        for path in candidates:
+            if path.exists():
+                return path
+        return None
 
     @staticmethod
     def _resolve_app_root() -> Path:

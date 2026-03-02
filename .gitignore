@@ -38,3 +38,10 @@ Thumbs.db
 
 # Local-only workspace (never publish)
 local/
+
+# Secrets / local env files
+.env
+.env.*
+*.pfx
+*.pem
+*.key

@@ -91,6 +91,10 @@ powershell -ExecutionPolicy RemoteSigned -File .\scripts\register-startup-task.p
 powershell -ExecutionPolicy RemoteSigned -File .\scripts\unregister-startup-task.ps1
 ```
 
+補足:
+- 旧方式（`powershell.exe ... worldrec-vrchat-autostart.ps1 -PollSeconds 60`）のタスクが残っている場合、PC 起動時にコンソールが表示されることがあります。
+- `schtasks /Delete` で「アクセスが拒否されました」が出る場合は、管理者権限の PowerShell/CMD で実行してください。
+
 ## ビルド
 
 実行ファイル作成:

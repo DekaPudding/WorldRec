@@ -1,7 +1,6 @@
 param(
     [switch]$Clean,
     [string]$DistPath,
-    [string]$AutostartTaskName = 'WorldRec-VRChat-Autostart',
     [switch]$SkipRuntimeStop
 )
 
@@ -13,6 +12,8 @@ $SpecPath = Join-Path $ProjectRoot 'worldrec.spec'
 $VenvPython = Join-Path $ProjectRoot '.venv\Scripts\python.exe'
 $DefaultDistRoot = Join-Path $ProjectRoot 'dist'
 $FallbackDistRoot = Join-Path $ProjectRoot 'dist_build'
+$DefaultWorkRoot = Join-Path $ProjectRoot 'build'
+$FallbackWorkRoot = Join-Path $ProjectRoot 'build_build'
 $usingCustomDistPath = [bool]$DistPath
 
 function Ensure-CleanArtifacts {
@@ -37,12 +38,6 @@ function Ensure-CleanArtifacts {
 }
 
 function Stop-WorldRecRuntime {
-    param([string]$TaskName)
-
-    if ($TaskName) {
-        schtasks /End /TN $TaskName 2>$null | Out-Null
-    }
-
     Get-Process -Name 'WorldRec' -ErrorAction SilentlyContinue | ForEach-Object {
         try { Stop-Process -Id $_.Id -Force -ErrorAction Stop } catch {}
     }
@@ -50,7 +45,7 @@ function Stop-WorldRecRuntime {
     $pyProcs = Get-CimInstance Win32_Process -Filter "Name = 'python.exe' OR Name = 'pythonw.exe' OR Name = 'py.exe' OR Name = 'pyw.exe'" -ErrorAction SilentlyContinue
     foreach ($p in $pyProcs) {
         $cmd = [string]$p.CommandLine
-        if ($cmd -match 'app\.main' -or $cmd -match 'worldrec-vrchat-autostart\.ps1' -or $cmd -match 'WorldRec') {
+        if ($cmd -match 'app\.main' -or $cmd -match 'WorldRec') {
             try { Stop-Process -Id $p.ProcessId -Force -ErrorAction Stop } catch {}
         }
     }
@@ -79,10 +74,11 @@ if (-not (Test-Path $SpecPath)) {
 }
 
 $effectiveDistRoot = if ($usingCustomDistPath) { $DistPath } else { $DefaultDistRoot }
+$effectiveWorkRoot = $DefaultWorkRoot
 
 if (-not $SkipRuntimeStop) {
     Write-Host 'Stopping WorldRec runtime...'
-    Stop-WorldRecRuntime -TaskName $AutostartTaskName
+    Stop-WorldRecRuntime
     Start-Sleep -Seconds 2
 }
 
@@ -96,9 +92,17 @@ if ($Clean) {
         Ensure-CleanArtifacts -PathToRemove $FallbackDistRoot | Out-Null
         $effectiveDistRoot = $FallbackDistRoot
     }
+
+    $workCleanResult = Ensure-CleanArtifacts -PathToRemove $effectiveWorkRoot
+    if (-not $workCleanResult) {
+        Write-Warning "Default build work path is locked. Switching to fallback work path: $FallbackWorkRoot"
+        Ensure-CleanArtifacts -PathToRemove $FallbackWorkRoot | Out-Null
+        $effectiveWorkRoot = $FallbackWorkRoot
+    }
 }
 
 New-Item -ItemType Directory -Path $effectiveDistRoot -Force | Out-Null
+New-Item -ItemType Directory -Path $effectiveWorkRoot -Force | Out-Null
 
 $pythonExe = Get-BuildPython
 
@@ -116,6 +120,7 @@ if ($Clean) {
 
 $buildArgs += @('--noconfirm', $SpecPath)
 $buildArgs += @('--distpath', $effectiveDistRoot)
+$buildArgs += @('--workpath', $effectiveWorkRoot)
 
 if ($pythonExe -eq 'py') {
     & py @buildArgs
@@ -123,15 +128,21 @@ if ($pythonExe -eq 'py') {
     & $pythonExe @buildArgs
 }
 
-if (($LASTEXITCODE -ne 0) -and (-not $usingCustomDistPath) -and ($effectiveDistRoot -eq $DefaultDistRoot)) {
-    Write-Warning "PyInstaller failed on default dist path. Retrying with fallback: $FallbackDistRoot"
+if (($LASTEXITCODE -ne 0) -and ((-not $usingCustomDistPath) -and ($effectiveDistRoot -eq $DefaultDistRoot) -or ($effectiveWorkRoot -eq $DefaultWorkRoot))) {
+    Write-Warning "PyInstaller failed on default output paths. Retrying with fallback dist/work paths."
     Ensure-CleanArtifacts -PathToRemove $FallbackDistRoot | Out-Null
+    Ensure-CleanArtifacts -PathToRemove $FallbackWorkRoot | Out-Null
     New-Item -ItemType Directory -Path $FallbackDistRoot -Force | Out-Null
+    New-Item -ItemType Directory -Path $FallbackWorkRoot -Force | Out-Null
 
     $retryArgs = @($buildArgs)
     $distArgIndex = [Array]::IndexOf($retryArgs, '--distpath')
     if ($distArgIndex -ge 0 -and ($distArgIndex + 1) -lt $retryArgs.Count) {
         $retryArgs[$distArgIndex + 1] = $FallbackDistRoot
+    }
+    $workArgIndex = [Array]::IndexOf($retryArgs, '--workpath')
+    if ($workArgIndex -ge 0 -and ($workArgIndex + 1) -lt $retryArgs.Count) {
+        $retryArgs[$workArgIndex + 1] = $FallbackWorkRoot
     }
 
     if ($pythonExe -eq 'py') {
@@ -142,6 +153,7 @@ if (($LASTEXITCODE -ne 0) -and (-not $usingCustomDistPath) -and ($effectiveDistR
 
     if ($LASTEXITCODE -eq 0) {
         $effectiveDistRoot = $FallbackDistRoot
+        $effectiveWorkRoot = $FallbackWorkRoot
     }
 }
 

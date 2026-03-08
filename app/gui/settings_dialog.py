@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import logging
 import os
-import subprocess
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -34,6 +33,8 @@ from app.models.settings import AppSettings
 
 class SettingsDialog(QDialog):
     settings_applied = Signal(object)
+    _AUTOSTART_REG_PATH = r"Software\Microsoft\Windows\CurrentVersion\Run"
+    _AUTOSTART_VALUE_NAME = "WorldRecVRChatAutostart"
 
     def __init__(
         self,
@@ -259,12 +260,12 @@ class SettingsDialog(QDialog):
         if os.name == "nt" and should_sync_task:
             task_sync_error = self._sync_startup_task(saved.vrchat_autostart_enabled)
             if task_sync_error:
-                self.logger.error("Failed to sync startup task: %s", task_sync_error)
+                self.logger.error("Failed to sync startup setting: %s", task_sync_error)
 
         self.current_settings = saved
         self.settings_applied.emit(saved)
         if task_sync_error:
-            self.status_label.setText(f"設定を保存しましたが自動起動タスクの更新に失敗しました: {task_sync_error}")
+            self.status_label.setText(f"設定を保存しましたが自動起動設定の更新に失敗しました: {task_sync_error}")
             return False
         else:
             self.status_label.setText("設定を保存しました。")
@@ -371,72 +372,77 @@ class SettingsDialog(QDialog):
             self.status_label.setText(f"バックアップ復元に失敗しました: {exc}")
 
     def _sync_startup_task(self, enabled: bool) -> str | None:
-        script_name = "register-startup-task.ps1" if enabled else "unregister-startup-task.ps1"
-        args = []
-        ok, message = self._run_startup_script(script_name, args)
-        if ok:
-            return None
-        return message or "詳細不明"
-
-    def _run_startup_script(self, script_name: str, args: list[str]) -> tuple[bool, str]:
         if os.name != "nt":
-            return False, "この機能はWindowsでのみ利用できます。"
+            return "この機能はWindowsでのみ利用できます。"
 
-        app_root = self._resolve_app_root()
-        script_path = self._resolve_startup_script_path(script_name, app_root)
-        if script_path is None:
-            self.logger.error(
-                "Startup script not found: script=%s app_root=%s",
-                script_name,
-                app_root,
-            )
-            return False, f"スクリプトが見つかりません: {app_root / 'scripts' / script_name}"
-
-        cmd = [
-            "powershell",
-            "-NoLogo",
-            "-NoProfile",
-            "-NonInteractive",
-            "-ExecutionPolicy",
-            "RemoteSigned",
-            "-File",
-            str(script_path),
-            *args,
-        ]
         try:
-            subprocess.run(cmd, cwd=str(app_root), check=True, capture_output=True, text=True)
-            return True, ""
-        except subprocess.CalledProcessError as exc:
-            message = (exc.stderr or exc.stdout or "").strip()
-            if len(message) > 180:
-                message = message[:180] + "..."
-            self.logger.error(
-                "Startup script failed: script=%s returncode=%s message=%s",
-                script_name,
-                exc.returncode,
-                message or "<empty>",
-            )
-            return False, message or "詳細不明"
+            if enabled:
+                self._set_startup_run_key()
+            else:
+                self._delete_startup_run_key()
+            return None
+        except Exception as exc:
+            self.logger.exception("Failed to sync startup Run key")
+            return str(exc)
 
-    @staticmethod
-    def _resolve_startup_script_path(script_name: str, app_root: Path) -> Path | None:
-        candidates = [
-            app_root / "scripts" / script_name,
-            app_root / "_internal" / "scripts" / script_name,
-        ]
-        meipass = getattr(sys, "_MEIPASS", None)
-        if meipass:
-            candidates.append(Path(meipass) / "scripts" / script_name)
-        for path in candidates:
-            if path.exists():
-                return path
-        return None
+    def _set_startup_run_key(self) -> None:
+        import winreg
+
+        command = self._build_autostart_command()
+        with winreg.OpenKey(
+            winreg.HKEY_CURRENT_USER,
+            self._AUTOSTART_REG_PATH,
+            0,
+            winreg.KEY_SET_VALUE,
+        ) as key:
+            winreg.SetValueEx(
+                key,
+                self._AUTOSTART_VALUE_NAME,
+                0,
+                winreg.REG_SZ,
+                command,
+            )
+
+    def _delete_startup_run_key(self) -> None:
+        import winreg
+
+        with winreg.OpenKey(
+            winreg.HKEY_CURRENT_USER,
+            self._AUTOSTART_REG_PATH,
+            0,
+            winreg.KEY_SET_VALUE,
+        ) as key:
+            try:
+                winreg.DeleteValue(key, self._AUTOSTART_VALUE_NAME)
+            except FileNotFoundError:
+                return
+
+    def _build_autostart_command(self) -> str:
+        app_root = self._resolve_app_root()
+        if getattr(sys, "frozen", False):
+            return f'{self._quote_cmd_arg(str(Path(sys.executable).resolve()))} --start-minimized'
+
+        main_script = app_root / "app" / "main.py"
+        if not main_script.exists():
+            raise FileNotFoundError(f"Main script not found: {main_script}")
+
+        python_path = Path(sys.executable).resolve()
+        pythonw_path = python_path.with_name("pythonw.exe")
+        launcher = pythonw_path if pythonw_path.exists() else python_path
+        return (
+            f'{self._quote_cmd_arg(str(launcher))} '
+            f'{self._quote_cmd_arg(str(main_script))} --start-minimized'
+        )
 
     @staticmethod
     def _resolve_app_root() -> Path:
         if getattr(sys, "frozen", False):
             return Path(sys.executable).resolve().parent
         return Path(__file__).resolve().parents[2]
+
+    @staticmethod
+    def _quote_cmd_arg(value: str) -> str:
+        return '"' + value.replace('"', '""') + '"'
 
     @staticmethod
     def _set_combo_value(combo: QComboBox, value: str) -> None:

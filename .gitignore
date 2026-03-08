@@ -16,6 +16,7 @@ build_build/
 artifacts/
 
 # Test/coverage outputs
+tests/
 .pytest_cache/
 .coverage
 coverage.xml

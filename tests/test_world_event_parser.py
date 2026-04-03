@@ -22,7 +22,7 @@ class WorldEventParserTest(unittest.TestCase):
         self.assertIsNotNone(event)
         assert event is not None
         self.assertEqual(event.world_id, "wrld_36e600ac-3b08-4736-b0c0-5d0fd4edb0d7")
-        self.assertEqual(event.instance_access_type, "hidden")
+        self.assertEqual(event.instance_access_type, "friends+")
         self.assertIn("~hidden", event.instance_raw_tags or "")
 
     def test_region_only_does_not_force_access_type(self) -> None:

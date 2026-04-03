@@ -110,7 +110,13 @@ class SettingsDialog(QDialog):
 
         ai_group = QGroupBox("AI検索")
         ai_layout = QVBoxLayout()
-        ai_layout.addWidget(QLabel("AI検索機能は現在未実装です。"))
+        ai_notice = QLabel(
+            "AI検索は訪問履歴から候補を表示します。"
+            "\n`WORLDREC_OPENAI_API_KEY` または `OPENAI_API_KEY` が設定されている場合は"
+            " OpenAI API を利用し、未設定時は履歴ベースで候補を表示します。"
+        )
+        ai_notice.setWordWrap(True)
+        ai_layout.addWidget(ai_notice)
         ai_group.setLayout(ai_layout)
 
         layout.addWidget(appearance_group)

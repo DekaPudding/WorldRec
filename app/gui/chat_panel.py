@@ -26,14 +26,11 @@ class ChatPanel(QWidget):
         self.setObjectName("chatPanel")
 
         self.query_input = QLineEdit()
-        self.query_input.setPlaceholderText("AI検索機能は現在未実装です")
-        self.query_input.setEnabled(False)
-        self.send_button = QPushButton("検索（未実装）")
-        self.send_button.setEnabled(False)
+        self.query_input.setPlaceholderText("探したいワールドの条件を入力")
+        self.send_button = QPushButton("検索")
         self.clear_button = QPushButton("入力クリア")
-        self.clear_button.setEnabled(False)
         self.chat_list = QListWidget()
-        self.status_label = QLabel("未実装")
+        self.status_label = QLabel("待機中")
         self.status_label.setObjectName("chatStatusLabel")
         self.status_label.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         self._loading_item: QListWidgetItem | None = None
@@ -53,14 +50,17 @@ class ChatPanel(QWidget):
         input_row.addWidget(self.clear_button)
 
         layout = QVBoxLayout()
-        title = QLabel("AIチャット検索（未実装）")
+        title = QLabel("AIチャット検索")
         title.setObjectName("sectionTitle")
         layout.addWidget(title)
         layout.addLayout(input_row)
         layout.addWidget(self.status_label)
         layout.addWidget(self.chat_list)
         self.setLayout(layout)
-        self._append_ai_message("AI検索機能は現在準備中です。")
+        self._append_ai_message(
+            "訪問履歴から条件に合うワールド候補を探します。"
+            "\nOpenAI API キー未設定時は、履歴ベースの候補を表示します。"
+        )
 
     def _emit_query(self) -> None:
         query = self.query_input.text().strip()

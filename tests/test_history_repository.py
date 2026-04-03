@@ -53,7 +53,7 @@ class HistoryRepositoryTest(unittest.TestCase):
         self.assertEqual(len(by_tag), 1)
         self.assertEqual(by_tag[0].world_name, "Bar Night")
 
-        by_type = self.repository.list_visits(FilterCriteria(instance_access_type="hidden"))
+        by_type = self.repository.list_visits(FilterCriteria(instance_access_type="friends+"))
         self.assertEqual(len(by_type), 1)
         self.assertEqual(by_type[0].world_name, "Bar Night")
 
@@ -111,7 +111,7 @@ class HistoryRepositoryTest(unittest.TestCase):
 
         rows = self.repository.list_visits(FilterCriteria(world_name_query="夜更け"))
         self.assertEqual(len(rows), 1)
-        self.assertEqual(rows[0].instance_access_type, "hidden")
+        self.assertEqual(rows[0].instance_access_type, "friends+")
         self.assertEqual(rows[0].world_id, "wrld_36e600ac-3b08-4736-b0c0-5d0fd4edb0d7")
 
     def test_count_visits_ignores_duplicate_rows_same_event(self) -> None:

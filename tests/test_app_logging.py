@@ -17,6 +17,13 @@ class AppLoggingTest(unittest.TestCase):
         importlib.reload(app_logging)
 
     def tearDown(self) -> None:
+        root = logging.getLogger()
+        for handler in list(root.handlers):
+            root.removeHandler(handler)
+            try:
+                handler.close()
+            except Exception:
+                pass
         self.tempdir.cleanup()
 
     def test_setup_logging_creates_daily_log_file(self) -> None:

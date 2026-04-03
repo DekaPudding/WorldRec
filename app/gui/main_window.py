@@ -21,7 +21,11 @@ from PySide6.QtWidgets import (
 
 from app.core.history_filter_service import HistoryFilterService
 from app.core.log_watcher import LogWatcher
-from app.core.recommendation_service import RecommendationResponse, RecommendationService
+from app.core.recommendation_service import (
+    RecommendationResponse,
+    RecommendationService,
+    format_recommendation_message,
+)
 from app.core.settings_service import SettingsService
 from app.core.tag_utils import normalize_tag_string
 from app.core.world_detail_service import WorldDetailService
@@ -251,9 +255,8 @@ class MainWindow(QMainWindow):
         self.chat_panel = ChatPanel()
         self.feedback_button = QPushButton("不具合報告・要望を送る")
         self.feedback_button.setObjectName("feedbackButton")
-        self.chat_open_button = QPushButton("AI検索（未実装）")
+        self.chat_open_button = QPushButton("AI検索を開く")
         self.chat_open_button.setObjectName("chatOpenButton")
-        self.chat_open_button.setEnabled(False)
         self._chat_visible = False
 
         self._connect_signals()
@@ -832,9 +835,7 @@ class MainWindow(QMainWindow):
 
     @staticmethod
     def _format_response_message(response: RecommendationResponse) -> str:
-        if not response.items:
-            return "AI検索機能は現在未実装です。"
-        return "AI検索機能は現在未実装です。"
+        return format_recommendation_message(response)
 
     def _show_error(self, message: str) -> None:
         self.logger.error(message)
@@ -846,7 +847,15 @@ class MainWindow(QMainWindow):
         self.status_bar.showMessage(message, 8000)
 
     def _toggle_chat_panel(self) -> None:
-        self._show_info("AI検索機能は現在未実装です。")
+        self._chat_visible = not self._chat_visible
+        self.chat_panel.setVisible(self._chat_visible)
+        if self._chat_visible:
+            self.chat_open_button.setText("AI検索を閉じる")
+            self.content_splitter.setSizes([800, 400])
+            self.chat_panel.query_input.setFocus()
+        else:
+            self.chat_open_button.setText("AI検索を開く")
+            self.content_splitter.setSizes([1200, 0])
 
     def _open_feedback_url(self) -> None:
         if not QDesktopServices.openUrl(QUrl(FEEDBACK_FORM_URL)):
